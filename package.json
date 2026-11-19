@@ -1,0 +1,11 @@
+{
+  "name": "cevix-esim",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test",
+    "order-esim": "node scripts/order-esim.js"
+  }
+}

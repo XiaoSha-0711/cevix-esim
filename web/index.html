@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cevix eSIM 示範站</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;900&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: an airport departures board meets a boarding pass. The board is the hero;
+   plans are tickets; the demo is the phone storefront beside the backend's own log. */
+:root {
+  --ink: #14202e;          /* signage navy, text */
+  --paper: #eef1f4;        /* cool ticket stock, page */
+  --card: #ffffff;
+  --muted: #5b6878;
+  --line: #cfd6de;
+  --signal: #f2b01e;       /* departures-board amber, the one bold colour */
+  --signal-ink: #14202e;
+  --board: #0f1924;        /* the board itself stays dark in both themes */
+  --board-text: #f5c542;
+  --ok: #2f8f5b;
+  --font-display: "Noto Serif TC", "Songti TC", serif;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e7ecf2; --paper: #0b121a; --card: #121c27; --muted: #97a4b3; --line: #243242;
+    --signal: #f2b01e; --signal-ink: #14202e; --board: #070c12; --board-text: #f5c542; --ok: #4cc08a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ink: #e7ecf2; --paper: #0b121a; --card: #121c27; --muted: #97a4b3; --line: #243242;
+  --signal: #f2b01e; --signal-ink: #14202e; --board: #070c12; --board-text: #f5c542; --ok: #4cc08a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--ink); font-family: var(--font-body); line-height: 1.65; font-size: 16px; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+.demo-banner { background: var(--signal); color: var(--signal-ink); font-size: 14px; font-weight: 500; text-align: center; padding: 6px 16px; }
+
+header.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 0; }
+.brand { font-family: var(--font-mono); font-weight: 600; letter-spacing: .08em; font-size: 15px; }
+.brand b { background: var(--ink); color: var(--paper); padding: 2px 6px; margin-right: 6px; }
+.top nav { display: flex; gap: 20px; font-size: 15px; flex-wrap: wrap; }
+.top nav a { text-decoration: none; color: var(--muted); }
+.top nav a:hover { color: var(--ink); }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; align-items: center; padding: 28px 0 56px; }
+.hero h1 { font-family: var(--font-display); font-weight: 900; font-size: clamp(34px, 5.2vw, 60px); line-height: 1.15; margin: 0 0 18px; text-wrap: balance; letter-spacing: .01em; }
+.hero h1 em { font-style: normal; box-shadow: inset 0 -0.32em 0 var(--signal); }
+.hero p.lede { font-size: 18px; color: var(--muted); max-width: 32em; margin: 0 0 26px; }
+.cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.btn { font: inherit; font-weight: 700; border: 2px solid var(--ink); background: var(--ink); color: var(--paper); padding: 12px 20px; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; }
+.btn.ghost { background: transparent; color: var(--ink); }
+.btn:hover { transform: translateY(-1px); }
+
+.board { background: var(--board); color: var(--board-text); border-radius: 6px; padding: 18px 18px 14px; font-family: var(--font-mono); box-shadow: 0 18px 40px -20px rgba(0,0,0,.6); }
+.board-head { display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .14em; color: #8a97a6; margin-bottom: 10px; }
+.board table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.board th { text-align: left; font-weight: 400; font-size: 11px; letter-spacing: .14em; color: #8a97a6; padding: 0 6px 6px; }
+.board td { padding: 0; }
+.cell { display: inline-block; background: #17232f; border-radius: 3px; padding: 5px 8px; margin: 2px 0; min-width: 100%; font-size: 15px; letter-spacing: .06em; white-space: nowrap; }
+.board td + td { padding-left: 6px; }
+.cell.ok { color: #6fe0a2; }
+.flip { animation: flip .45s ease; }
+@keyframes flip { 0% { transform: rotateX(90deg); opacity: .2; } 100% { transform: rotateX(0); opacity: 1; } }
+.board-foot { margin-top: 10px; font-size: 12px; color: #8a97a6; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+section { padding: 56px 0; border-top: 1px solid var(--line); }
+.eyebrow { font-family: var(--font-mono); font-size: 13px; letter-spacing: .16em; color: var(--muted); margin: 0 0 8px; }
+h2 { font-family: var(--font-display); font-weight: 900; font-size: clamp(26px, 3.4vw, 38px); margin: 0 0 12px; text-wrap: balance; line-height: 1.25; }
+.sub { color: var(--muted); max-width: 40em; margin: 0 0 28px; }
+
+/* Demo */
+.demo { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 28px; align-items: start; }
+.phone { background: var(--card); border: 1px solid var(--line); border-radius: 26px; padding: 12px; box-shadow: 0 20px 50px -30px rgba(0,0,0,.45); }
+.chat-head { display: flex; align-items: center; gap: 10px; padding: 8px 10px 12px; border-bottom: 1px solid var(--line); }
+.avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--signal); color: var(--signal-ink); display: grid; place-items: center; font-family: var(--font-mono); font-weight: 600; font-size: 13px; }
+.chat-head .name { font-weight: 700; font-size: 15px; line-height: 1.2; }
+.chat-head .status { font-size: 12px; color: var(--muted); }
+.chat { height: 470px; overflow-y: auto; padding: 14px 6px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
+.msg { max-width: 86%; padding: 9px 12px; border-radius: 14px; font-size: 14.5px; line-height: 1.55; animation: rise .25s ease; }
+@keyframes rise { from { transform: translateY(6px); opacity: .3; } to { transform: none; opacity: 1; } }
+.msg.bot { background: var(--paper); border-top-left-radius: 4px; align-self: flex-start; }
+.msg.me { background: var(--ink); color: var(--paper); border-top-right-radius: 4px; align-self: flex-end; }
+.msg small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.msg.me small { color: inherit; opacity: .7; }
+.kb { display: grid; gap: 6px; margin-top: 8px; }
+.kb button { font: inherit; font-size: 14px; font-weight: 500; text-align: left; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 8px 10px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
+.kb button:hover:not(:disabled) { border-color: var(--ink); }
+.kb button:disabled { opacity: .45; cursor: default; }
+.kb button b { font-variant-numeric: tabular-nums; }
+.qr { background: #fff; padding: 10px; border-radius: 8px; display: inline-block; margin-top: 8px; }
+.qr svg { display: block; width: 156px; height: 156px; }
+.code { font-family: var(--font-mono); font-size: 12px; word-break: break-all; background: var(--card); border: 1px dashed var(--line); padding: 6px 8px; border-radius: 6px; margin-top: 6px; }
+.meter { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+.meter i { display: block; height: 100%; background: var(--signal); }
+.urlbar { display: flex; align-items: center; gap: 8px; background: var(--paper); border-radius: 999px; padding: 7px 14px; font-size: 12.5px; color: var(--muted); font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.urlbar .lock { color: var(--ok); font-size: 9px; }
+.screen { height: 490px; overflow-y: auto; padding: 16px 8px; display: flex; flex-direction: column; gap: 12px; }
+.screen h3 { font-family: var(--font-display); font-size: 21px; margin: 0; line-height: 1.3; }
+.screen p { margin: 0; font-size: 14px; color: var(--muted); }
+.screen .pane { animation: rise .25s ease; display: flex; flex-direction: column; gap: 12px; }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.field input { font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); }
+.pay { border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 8px; font-size: 14px; }
+.pay .row { display: flex; justify-content: space-between; gap: 10px; }
+.pay .row b { font-variant-numeric: tabular-nums; }
+.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.timeline li { display: flex; gap: 8px; align-items: baseline; color: var(--muted); }
+.timeline li::before { content: "○"; font-size: 12px; }
+.timeline li.done { color: var(--ink); }
+.timeline li.done::before { content: "●"; color: var(--ok); }
+.mail { border-left: 3px solid var(--signal); background: var(--paper); padding: 8px 10px; border-radius: 4px; font-size: 13.5px; animation: rise .25s ease; }
+.mail small { display: block; color: var(--muted); font-size: 12px; }
+.chat-foot { display: flex; gap: 8px; padding: 10px 6px 4px; border-top: 1px solid var(--line); }
+.chat-foot .btn { padding: 8px 14px; font-size: 14px; }
+
+.log { background: var(--board); color: #c9d4df; border-radius: 10px; font-family: var(--font-mono); font-size: 13px; padding: 16px; min-height: 560px; display: flex; flex-direction: column; }
+.log-head { display: flex; justify-content: space-between; gap: 10px; color: #8a97a6; font-size: 12px; letter-spacing: .12em; padding-bottom: 10px; border-bottom: 1px solid #1f2d3b; margin-bottom: 10px; flex-wrap: wrap; }
+.log ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; overflow-y: auto; max-height: 500px; }
+.log li { display: grid; grid-template-columns: 62px 1fr; gap: 10px; animation: rise .25s ease; }
+.log .t { color: #6b7a8b; font-variant-numeric: tabular-nums; }
+.log .k { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 3px; margin-right: 6px; letter-spacing: .06em; }
+.k.in { background: #2a3a1d; color: #b6e27a; }
+.k.out { background: #1d2f45; color: #8cc2ff; }
+.k.db { background: #3a2f12; color: #f5c542; }
+.k.bot { background: #3a1d33; color: #f0a6dc; }
+.log .d { color: #8a97a6; display: block; word-break: break-all; }
+.log .empty { color: #6b7a8b; }
+.legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: auto; padding-top: 12px; border-top: 1px solid #1f2d3b; font-size: 12px; color: #8a97a6; }
+
+/* Plans as tickets */
+.tickets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.ticket { background: var(--card); border: 1px solid var(--line); border-radius: 10px; display: grid; grid-template-rows: auto auto; position: relative; overflow: hidden; }
+.ticket.pick { border: 2px solid var(--ink); }
+.ticket .main { padding: 20px 20px 16px; }
+.ticket .gb { font-family: var(--font-display); font-weight: 900; font-size: 46px; line-height: 1; }
+.ticket .gb span { font-size: 20px; margin-left: 4px; }
+.ticket .meta { font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; color: var(--muted); margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+.ticket .meta b { display: block; color: var(--ink); font-size: 14px; letter-spacing: 0; font-weight: 600; }
+.ticket .stub { border-top: 2px dashed var(--line); padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.ticket .price { font-family: var(--font-mono); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ticket .per { font-size: 13px; color: var(--muted); }
+.ticket .tag { position: absolute; top: 14px; right: -34px; transform: rotate(35deg); background: var(--signal); color: var(--signal-ink); font-size: 12px; font-weight: 700; padding: 3px 40px; }
+.fine { font-size: 13px; color: var(--muted); margin-top: 16px; }
+
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; counter-reset: s; }
+.step { border-top: 3px solid var(--ink); padding-top: 14px; }
+.step h3 { font-size: 18px; margin: 0 0 6px; }
+.step h3::before { counter-increment: s; content: "0" counter(s); font-family: var(--font-mono); color: var(--muted); margin-right: 10px; font-size: 14px; }
+.step p { margin: 0; color: var(--muted); }
+
+.faq { display: grid; gap: 10px; max-width: 760px; }
+.faq details { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
+.faq summary { cursor: pointer; font-weight: 700; }
+.faq p { margin: 8px 0 0; color: var(--muted); }
+
+footer { border-top: 1px solid var(--line); padding: 28px 0 40px; font-size: 13px; color: var(--muted); }
+
+@media (max-width: 880px) {
+  .hero, .demo { grid-template-columns: 1fr; }
+  .tickets, .steps { grid-template-columns: 1fr; }
+  .log { min-height: 0; }
+  .top nav { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+<div class="demo-banner">示範網站：所有付款、eSIM 與 QR 碼皆為模擬，不會扣款，也無法安裝到手機。</div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><b>Cevix</b>eSIM</div>
+    <nav aria-label="主選單">
+      <a href="#demo">試玩</a>
+      <a href="#plans">方案</a>
+      <a href="#how">怎麼用</a>
+      <a href="#faq">常見問題</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <div>
+      <h1>一張 eSIM，<em>250+ 國家與地區</em>落地就上網。</h1>
+      <p class="lede">在 Cevix 網站選方案、付款，馬上拿到 QR 碼，掃一下就裝好。用量到 33%、66%、用完，都會用 email 提醒你，一鍵加購。最新優惠在 Cevix Telegram 頻道公告。</p>
+      <div class="cta-row">
+        <a class="btn" href="#demo">試玩購買流程</a>
+        <a class="btn ghost" href="#plans">看價格</a>
+      </div>
+    </div>
+    <div class="board" aria-label="覆蓋地區示意看板">
+      <div class="board-head"><span>DEPARTURES · 出發</span><span id="clock">--:--</span></div>
+      <table>
+        <thead><tr><th>目的地</th><th>代碼</th><th>網路</th></tr></thead>
+        <tbody id="board-rows"></tbody>
+      </table>
+      <div class="board-foot"><span>同一張 eSIM · 全球方案</span><span>目錄列出 252 個國家／地區代碼</span></div>
+    </div>
+  </div>
+</div>
+
+<section id="demo">
+  <div class="wrap">
+    <p class="eyebrow">LIVE DEMO · 互動示範</p>
+    <h2>從 Telegram 點進來買一張 eSIM，同時看後台做了什麼</h2>
+    <p class="sub">左邊是顧客從 Telegram 頻道點連結、在手機上看到的 Cevix 網站；右邊是同一時間後台收到與送出的事件。全部是模擬資料。</p>
+    <div class="demo">
+      <div class="phone">
+        <div class="urlbar"><span class="lock" aria-hidden="true">●</span><span id="url">cevix 網站（示範）/?utm_source=telegram</span></div>
+        <div class="screen" id="screen" aria-live="polite"></div>
+        <div class="chat-foot">
+          <button class="btn ghost" id="reset" type="button">重新開始</button>
+          <button class="btn" id="skip" type="button">快轉到下一步</button>
+        </div>
+      </div>
+      <div class="log" aria-label="後台事件記錄">
+        <div class="log-head"><span>BACKEND · 後台事件</span><span id="order-id">order: —</span></div>
+        <ol id="log"><li class="empty"><span class="t">--</span><span>按左邊「開始」後，這裡會一步一步出現事件。</span></li></ol>
+        <div class="legend">
+          <span><span class="k in">IN</span>收到的 webhook</span>
+          <span><span class="k out">OUT</span>呼叫 API</span>
+          <span><span class="k db">DB</span>訂單狀態</span>
+          <span><span class="k bot">MAIL</span>寄給顧客的 email</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="plans">
+  <div class="wrap">
+    <p class="eyebrow">PLANS · 方案</p>
+    <h2>全球通用，30 天有效</h2>
+    <p class="sub">每個方案都是同一張全球 eSIM。用完可以在訂單頁或 email 裡直接加購，不用換卡。</p>
+    <div class="tickets" id="tickets"></div>
+    <p class="fine">示範價格，以正式上線為準。不提供單獨 1 GB 方案：刷卡手續費的固定部分會讓小額方案無法打平。</p>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <p class="eyebrow">HOW IT WORKS · 怎麼用</p>
+    <h2>三步，出發前五分鐘就夠</h2>
+    <div class="steps">
+      <div class="step"><h3>在 Cevix 網站選方案</h3><p>從 Cevix Telegram 頻道點連結進來，選 3、10 或 50 GB，用信用卡、Apple Pay 或 Google Pay 付款。</p></div>
+      <div class="step"><h3>掃 QR 碼安裝</h3><p>付款後訂單頁馬上顯示 QR 碼，也會寄到你的 email。手機「設定 → 行動網路 → 加入 eSIM」掃描即可。</p></div>
+      <div class="step"><h3>落地開網路</h3><p>開啟這張 eSIM 的數據漫遊。用量提醒會寄到 email，訂單頁隨時可以加購。</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <p class="eyebrow">FAQ · 常見問題</p>
+    <h2>買之前先確認</h2>
+    <div class="faq">
+      <details><summary>我的手機能用嗎？</summary><p>手機需要支援 eSIM，而且沒有被電信商鎖定。iPhone XS 以後的機型、多數近年的 Pixel 與三星旗艦機都支援；不確定的話，在手機設定裡找找看有沒有「加入 eSIM」。</p></details>
+      <details><summary>付款會不會扣兩次？</summary><p>不會。每筆訂單有固定編號，系統重試時用同一個編號，同一筆付款只會開通一張 eSIM。開通失敗會自動退款。</p></details>
+      <details><summary>QR 碼可以給別人用嗎？</summary><p>不要分享。任何拿到 QR 碼的人都能安裝這張 eSIM。QR 碼只會出現在你的訂單頁（有時效的私人連結）和你的 email。</p></details>
+      <details><summary>用完了怎麼辦？</summary><p>用量到 33%、66% 和用完時會寄 email 通知你，點信裡的連結就能加購新方案，裝在同一張 eSIM 上。</p></details>
+      <details><summary>這是正式服務嗎？</summary><p>還不是。這是示範網站，展示上線後的購買流程。現在無法購買。</p></details>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">Cevix · 示範網站，所有資料皆為模擬 · 價格以正式上線為準 · 最新消息請看 Cevix Telegram 頻道</div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(() => {
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- Departures board ----------
+  const places = [
+    ["東京", "JP"], ["首爾", "KR"], ["曼谷", "TH"], ["新加坡", "SG"], ["倫敦", "GB"], ["巴黎", "FR"],
+    ["伊斯坦堡", "TR"], ["杜拜", "AE"], ["紐約", "US"], ["溫哥華", "CA"], ["雪梨", "AU"], ["里斯本", "PT"],
+    ["吉隆坡", "MY"], ["胡志明市", "VN"], ["蘇黎世", "CH"], ["墨西哥城", "MX"], ["開普敦", "ZA"], ["香港", "HK"],
+  ];
+  const rows = document.getElementById("board-rows");
+  const N = 6;
+  let offset = 0;
+  function renderBoard(animate) {
+    rows.innerHTML = "";
+    for (let i = 0; i < N; i++) {
+      const [city, cc] = places[(offset + i) % places.length];
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td><span class="cell${animate ? " flip" : ""}" style="animation-delay:${i * 70}ms">${city}</span></td>` +
+        `<td><span class="cell${animate ? " flip" : ""}" style="animation-delay:${i * 70 + 30}ms">${cc}</span></td>` +
+        `<td><span class="cell ok${animate ? " flip" : ""}" style="animation-delay:${i * 70 + 60}ms">已覆蓋</span></td>`;
+      rows.appendChild(tr);
+    }
+  }
+  renderBoard(false);
+  if (!reduce) setInterval(() => { offset = (offset + N) % places.length; renderBoard(true); }, 4200);
+  const clock = document.getElementById("clock");
+  const tick = () => { const d = new Date(); clock.textContent = d.toTimeString().slice(0, 5); };
+  tick(); setInterval(tick, 15000);
+
+  // ---------- Plans ----------
+  const PLANS = [
+    { gb: 3, ref: "SG003GB030DGLN", price: 4.49 },
+    { gb: 10, ref: "SG010GB030DGLN", price: 12.99, pick: true },
+    { gb: 50, ref: "SG050GB030DGLN", price: 54.99 },
+  ];
+  const eur = (n) => "€" + n.toFixed(2);
+  document.getElementById("tickets").innerHTML = PLANS.map((p) => `
+    <article class="ticket${p.pick ? " pick" : ""}">
+      ${p.pick ? '<span class="tag">最多人選</span>' : ""}
+      <div class="main">
+        <div class="gb">${p.gb}<span>GB</span></div>
+        <div class="meta">
+          <div>有效期<b>30 天</b></div>
+          <div>範圍<b>全球</b></div>
+          <div>速度上限<b>100 Mbps</b></div>
+          <div>方案代碼<b style="font-size:12px">${p.ref}</b></div>
+        </div>
+      </div>
+      <div class="stub">
+        <span class="price">${eur(p.price)}</span>
+        <span class="per">約 ${eur(p.price / p.gb)} / GB</span>
+      </div>
+    </article>`).join("");
+
+  // ---------- Demo: Cevix website purchase ----------
+  const screen = document.getElementById("screen");
+  const url = document.getElementById("url");
+  const log = document.getElementById("log");
+  const orderLabel = document.getElementById("order-id");
+  let t0, timers = [], order, pendingNext = null;
+
+  const rnd = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
+  const now = () => "+" + ((performance.now() - t0) / 1000).toFixed(1) + "s";
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  function later(ms, fn) { const id = setTimeout(fn, reduce ? Math.min(ms, 150) : ms); timers.push(id); }
+  function ev(kind, title, detail) {
+    if (log.querySelector(".empty")) log.innerHTML = "";
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="t">${now()}</span><span><span class="k ${kind}">${kind === "bot" ? "MAIL" : kind.toUpperCase()}</span>${esc(title)}${detail ? `<span class="d">${esc(detail)}</span>` : ""}</span>`;
+    log.appendChild(li);
+    log.scrollTop = log.scrollHeight;
+  }
+  function show(html) {
+    screen.innerHTML = `<div class="pane">${html}</div>`;
+    screen.scrollTop = 0;
+    return screen.firstElementChild;
+  }
+  function actions(pane, buttons) {
+    const kb = document.createElement("div");
+    kb.className = "kb";
+    for (const b of buttons) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.innerHTML = b.html;
+      btn.addEventListener("click", () => { kb.querySelectorAll("button").forEach((x) => (x.disabled = true)); pendingNext = null; b.onClick(); });
+      kb.appendChild(btn);
+    }
+    pane.appendChild(kb);
+    pendingNext = () => kb.querySelector("button:not(:disabled)")?.click();
+  }
+
+  function start() {
+    timers.forEach(clearTimeout); timers = [];
+    log.innerHTML = '<li class="empty"><span class="t">--</span><span>按左邊的按鈕開始，這裡會一步一步出現事件。</span></li>';
+    orderLabel.textContent = "order: —"; order = null;
+    url.textContent = "Telegram · Cevix 頻道";
+    const pane = show(`<h3>Cevix 頻道公告</h3><p>出國上網，一張全球 eSIM，250+ 國家與地區通用。前 100 名下單有開站優惠。</p><p style="font-family:var(--font-mono);font-size:12px">（示範：這是 Telegram 頻道裡的貼文）</p>`);
+    actions(pane, [{ html: "<span>點貼文裡的連結</span><span>→</span>", onClick: landing }]);
+  }
+
+  function landing() {
+    t0 = performance.now();
+    url.textContent = "cevix 網站（示範）/?utm_source=telegram&utm_campaign=channel-a";
+    ev("in", "GET /?utm_source=telegram&utm_campaign=channel-a", "記下來源頻道 → 之後寫進訂單，算每個頻道的成交數");
+    const pane = show(`<h3>選一個方案</h3><p>三個方案都是 30 天、全球通用，裝在同一張 eSIM 上。</p>
+      <label class="field" for="demo-email">收 QR 碼的 email<input id="demo-email" type="email" value="you@example.com"></label>`);
+    actions(pane, PLANS.map((p) => ({ html: `<span>${p.gb} GB · 30 天</span><b>${eur(p.price)}</b>`, onClick: () => checkout(p) })));
+  }
+
+  function checkout(p) {
+    const session = "cs_test_" + rnd(24);
+    const email = document.getElementById("demo-email")?.value || "you@example.com";
+    order = { plan: p, session, email };
+    orderLabel.textContent = "order: " + session.slice(0, 18) + "…";
+    ev("out", "Stripe: 建立 Checkout Session", `${session} · ${Math.round(p.price * 100)} EUR cents · metadata.utm_campaign=channel-a`);
+    ev("db", "orders INSERT status=awaiting_payment", "id = " + session + "（也是之後 Firsty 的冪等鍵來源）");
+    url.textContent = "Stripe Checkout（示範，不會扣款）";
+    const pane = show(`<h3>結帳</h3>
+      <div class="pay">
+        <div class="row"><span>${p.gb} GB 全球 · 30 天</span><b>${eur(p.price)}</b></div>
+        <div class="row"><span>email</span><span>${esc(email)}</span></div>
+        <div class="row"><span>付款方式</span><span>信用卡 / Apple Pay / Google Pay</span></div>
+      </div><p>示範模式：按下去不會扣款。</p>`);
+    actions(pane, [{ html: `<span>付款</span><b>${eur(p.price)}</b>`, onClick: pay }]);
+  }
+
+  const STEPS = ["已付款", "eSIM 已開通", "已安裝到手機", "方案已啟用"];
+  function orderPage(doneCount, extra = "") {
+    url.textContent = "cevix 網站（示範）/orders/" + order.session.slice(8, 16) + "…（私人連結）";
+    return show(`<h3>訂單：${order.plan.gb} GB 全球 30 天</h3>
+      <ol class="timeline">${STEPS.map((s, i) => `<li class="${i < doneCount ? "done" : ""}">${s}</li>`).join("")}</ol>${extra}`);
+  }
+
+  function pay() {
+    const { plan, session } = order;
+    ev("in", "Stripe webhook: checkout.session.completed", "簽章驗證通過 · 存入 webhook_inbox（event id 去重）· 回覆 200");
+    ev("db", "orders: awaiting_payment → paid");
+    orderPage(1, `<p>付款成功，正在幫你開通 eSIM…</p>`);
+    later(900, () => ev("out", "Firsty POST /esims", `X-Idempotency-Key: xs-esim-${session} · esimVariant=travel_ota`));
+    later(1500, () => ev("db", "orders: paid → esim_ordered", "profileReference / esimReference 已儲存"));
+    later(2000, () => ev("out", "Firsty POST /profiles/…/esims/…/packages", `planReference=${plan.ref} · X-Idempotency-Key: xs-pkg-${session}`));
+    later(2600, () => {
+      ev("db", "orders: esim_ordered → package_pending");
+      ev("bot", "寄出 email：你的 eSIM QR 碼", "outbox: qr_ready（同一封信不會寄兩次）→ " + order.email);
+      showQr();
+    });
+  }
+
+  function showQr() {
+    const lpa = "LPA:1$demo.invalid$DEMO-" + rnd(16).toUpperCase();
+    let qrHtml = "";
+    try { const q = qrcode(0, "M"); q.addData(lpa); q.make(); qrHtml = `<div class="qr" aria-label="示範 QR 碼">${q.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div>`; }
+    catch { qrHtml = ""; }
+    const pane = orderPage(2, `<p>在手機「設定 → 行動網路 → 加入 eSIM」掃描：</p><div>${qrHtml}</div><div class="code">${esc(lpa)}</div><p style="font-size:12px">示範 QR 碼，無法安裝。真正的 QR 碼請勿分享。</p>`);
+    actions(pane, [{ html: "<span>我已經掃好了</span>", onClick: installed }]);
+  }
+
+  function installed() {
+    later(400, () => ev("in", "Firsty webhook: esim.downloaded", "webhook-id 去重 · HMAC-SHA256 簽章 ±5 分鐘"));
+    later(900, () => { ev("in", "Firsty webhook: esim.installed"); orderPage(3, `<p>安裝成功。落地後開啟這張 eSIM 的數據漫遊就能上網。</p>`); });
+    later(1900, () => { ev("in", "Firsty webhook: package.activated"); ev("db", "orders: package_pending → active"); ev("bot", "寄出 email：方案已啟用"); });
+    later(2200, () => {
+      const pane = orderPage(4, `<p>方案已啟用：${order.plan.gb} GB，30 天。</p><div class="meter"><i style="width:4%"></i></div>`);
+      actions(pane, [{ html: "<span>快轉：模擬使用幾天後</span><span>→</span>", onClick: usage }]);
+    });
+  }
+
+  function usage() {
+    const used = (order.plan.gb * 0.66).toFixed(1);
+    later(500, () => { ev("in", "Firsty webhook: package.usage.threshold", "thresholdPercents=[33,66] · 已達 66%"); ev("bot", "寄出 email：用量 66%", "outbox: usage_66 → " + order.email); });
+    later(800, () => {
+      const pane = orderPage(4, `<div class="mail"><small>Email · Cevix</small>提醒：你已使用 66%（約 ${used} / ${order.plan.gb} GB）。點下面加購，裝在同一張 eSIM 上。</div><div class="meter"><i style="width:66%"></i></div>`);
+      actions(pane, PLANS.map((p) => ({ html: `<span>加購 ${p.gb} GB</span><b>${eur(p.price)}</b>`, onClick: () => topup(p) })));
+    });
+  }
+
+  function topup(p) {
+    ev("out", "Stripe: 建立新的 Checkout Session（加購）", "新訂單編號 → 新冪等鍵；Firsty 套餐加在同一張 eSIM 上");
+    later(500, () => ev("db", "示範結束", "完整流程：Telegram 頻道 → 網站 → 付款 → 開通 → QR → 安裝 → 啟用 → 用量提醒 → 加購"));
+    orderPage(4, `<div class="mail"><small>示範到此結束</small>已建立加購訂單：${p.gb} GB，${eur(p.price)}。正式上線後，付款完成就會自動加到同一張 eSIM。按「重新開始」再玩一次。</div>`);
+  }
+
+  document.getElementById("reset").addEventListener("click", start);
+  document.getElementById("skip").addEventListener("click", () => pendingNext && pendingNext());
+  start();
+})();
+</script>
+</body>
+</html>
